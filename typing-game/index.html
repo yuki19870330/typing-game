@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TypeRacer ⚡</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a24;
+      --border: #2e2e42;
+      --text: #e2e2f0;
+      --muted: #6b6b8a;
+      --accent: #7c6af7;
+      --accent-glow: rgba(124, 106, 247, 0.35);
+      --correct: #4ade80;
+      --wrong: #f87171;
+      --wrong-bg: rgba(248, 113, 113, 0.18);
+      --cursor: #7c6af7;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      gap: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Stats bar */
+    .stats {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    .stat-value {
+      font-size: 2.4rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      color: var(--accent);
+      transition: color 0.2s;
+    }
+
+    .stat-value.flash {
+      color: var(--correct);
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .divider {
+      width: 1px;
+      height: 3rem;
+      background: var(--border);
+    }
+
+    /* Timer ring */
+    .timer-ring {
+      position: relative;
+      width: 80px;
+      height: 80px;
+    }
+
+    .timer-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .timer-ring-bg {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 5;
+    }
+
+    .timer-ring-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-dasharray: 220;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear, stroke 0.3s;
+    }
+
+    .timer-ring-progress.urgent {
+      stroke: var(--wrong);
+    }
+
+    .timer-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .timer-label small {
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* Game area */
+    .game-area {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1.2rem;
+      padding: 2rem 2.5rem;
+      width: 100%;
+      max-width: 780px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Passage display */
+    .passage {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 1.3rem;
+      line-height: 2;
+      user-select: none;
+      word-break: break-word;
+      min-height: 6rem;
+    }
+
+    .char {
+      position: relative;
+      transition: color 0.05s;
+    }
+
+    .char.correct { color: var(--correct); }
+    .char.wrong {
+      color: var(--wrong);
+      background: var(--wrong-bg);
+      border-radius: 2px;
+    }
+
+    .char.cursor::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--cursor);
+      border-radius: 2px;
+      animation: blink 0.8s ease-in-out infinite;
+      box-shadow: 0 0 6px var(--accent-glow);
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* Input */
+    .input-wrap {
+      position: relative;
+    }
+
+    .typing-input {
+      width: 100%;
+      padding: 0.9rem 1.2rem;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 0.75rem;
+      color: var(--text);
+      font-size: 1rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      caret-color: var(--accent);
+    }
+
+    .typing-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .typing-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .input-hint {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 0.75rem 2rem;
+      border-radius: 0.65rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #7c6af7, #60a5fa);
+      color: white;
+      box-shadow: 0 4px 20px rgba(124, 106, 247, 0.4);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 4px 28px rgba(124, 106, 247, 0.6);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+    .actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    /* Result overlay */
+    .result-overlay {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.4rem;
+      padding: 1rem 0;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .result-overlay.show { display: flex; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      width: 100%;
+    }
+
+    .result-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 0.8rem;
+      padding: 1.2rem 1rem;
+      text-align: center;
+    }
+
+    .result-card .val {
+      font-size: 2.2rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .result-card .val.highlight { color: var(--accent); }
+    .result-card .val.green     { color: var(--correct); }
+    .result-card .val.red       { color: var(--wrong); }
+
+    .result-card .lbl {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+
+    .new-record {
+      font-size: 0.85rem;
+      color: var(--correct);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      animation: pulse 1s ease infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { opacity: 0.7; }
+      to   { opacity: 1; }
+    }
+
+    .highscore-note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .highscore-note span {
+      color: var(--accent);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+<h1>TypeRacer ⚡</h1>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-value" id="wpm-display">0</div>
+    <div class="stat-label">WPM</div>
+  </div>
+  <div class="divider"></div>
+  <div class="timer-ring" id="timer-ring">
+    <svg width="80" height="80" viewBox="0 0 80 80">
+      <circle class="timer-ring-bg" cx="40" cy="40" r="35"/>
+      <circle class="timer-ring-progress" id="ring-progress" cx="40" cy="40" r="35"/>
+    </svg>
+    <div class="timer-label">
+      <span id="timer-display">60</span>
+      <small>sec</small>
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="stat">
+    <div class="stat-value" id="acc-display">—</div>
+    <div class="stat-label">Accuracy</div>
+  </div>
+</div>
+
+<div class="game-area">
+
+  <!-- typing view -->
+  <div id="typing-view">
+    <div class="passage" id="passage"></div>
+    <div class="input-wrap">
+      <input
+        type="text"
+        class="typing-input"
+        id="typing-input"
+        placeholder="ここに入力してタイマーをスタート..."
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+      />
+      <span class="input-hint" id="input-hint">↵ で再挑戦</span>
+    </div>
+  </div>
+
+  <!-- result view -->
+  <div class="result-overlay" id="result-view">
+    <div class="result-title" id="result-title">Time's up! ⏱</div>
+    <div class="result-grid">
+      <div class="result-card">
+        <div class="val highlight" id="res-wpm">0</div>
+        <div class="lbl">WPM</div>
+      </div>
+      <div class="result-card">
+        <div class="val green" id="res-acc">0%</div>
+        <div class="lbl">Accuracy</div>
+      </div>
+      <div class="result-card">
+        <div class="val" id="res-chars">0</div>
+        <div class="lbl">Correct chars</div>
+      </div>
+    </div>
+    <div class="new-record" id="new-record" style="display:none">🏆 New High Score!</div>
+    <div class="highscore-note" id="hs-note"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="restart-btn">再挑戦 ↵</button>
+      <button class="btn btn-ghost" id="change-btn">文章を変える</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const PASSAGES = [
+  "The quick brown fox jumps over the lazy dog near the riverbank every single morning.",
+  "Programming is the art of telling another human what one wants the computer to do.",
+  "To be or not to be, that is the question whether tis nobler in the mind to suffer.",
+  "The only way to do great work is to love what you do and never stop learning new things.",
+  "In the beginning God created the heavens and the earth and all things were made by him.",
+  "It is a truth universally acknowledged that a single man in possession of a good fortune.",
+  "Space is big. Really big. You just won't believe how vastly hugely mindbogglingly big it is.",
+  "All happy families are alike but each unhappy family is unhappy in its own particular way.",
+  "It was the best of times it was the worst of times it was the age of wisdom and foolishness.",
+  "Ask not what your country can do for you ask what you can do for your country every day.",
+  "Two roads diverged in a wood and I took the one less traveled by and that has made all the difference.",
+  "The future belongs to those who believe in the beauty of their dreams and work hard for them.",
+  "Simplicity is the ultimate sophistication and the best code is often the shortest and clearest.",
+  "Not all those who wander are lost and some of the greatest discoveries come from curious minds.",
+  "You can have data without information but you cannot have information without data to analyze.",
+];
+
+const DURATION = 60;
+const CIRCUMFERENCE = 2 * Math.PI * 35; // ~220
+
+let passage = '';
+let passageIndex = 0;
+let typed = '';
+let startTime = null;
+let timerInterval = null;
+let timeLeft = DURATION;
+let running = false;
+let totalKeystrokes = 0;
+let wrongKeystrokes = 0;
+let correctChars = 0;
+let usedPassages = new Set();
+
+const passageEl   = document.getElementById('passage');
+const inputEl     = document.getElementById('typing-input');
+const wpmEl       = document.getElementById('wpm-display');
+const accEl       = document.getElementById('acc-display');
+const timerEl     = document.getElementById('timer-display');
+const ringEl      = document.getElementById('ring-progress');
+const typingView  = document.getElementById('typing-view');
+const resultView  = document.getElementById('result-view');
+const resWpm      = document.getElementById('res-wpm');
+const resAcc      = document.getElementById('res-acc');
+const resChars    = document.getElementById('res-chars');
+const newRecord   = document.getElementById('new-record');
+const hsNote      = document.getElementById('hs-note');
+const restartBtn  = document.getElementById('restart-btn');
+const changeBtn   = document.getElementById('change-btn');
+const resultTitle = document.getElementById('result-title');
+
+function getHighScore() {
+  return parseInt(localStorage.getItem('typeracer-hs') || '0', 10);
+}
+
+function setHighScore(v) {
+  localStorage.setItem('typeracer-hs', String(v));
+}
+
+function pickPassage(avoid = null) {
+  let pool = PASSAGES.filter((_, i) => i !== avoid);
+  if (usedPassages.size >= pool.length) usedPassages.clear();
+  let available = pool.filter((_, i) => !usedPassages.has(i));
+  if (!available.length) available = pool;
+  const idx = Math.floor(Math.random() * available.length);
+  const chosen = available[idx];
+  usedPassages.add(PASSAGES.indexOf(chosen));
+  return chosen;
+}
+
+function renderPassage() {
+  passageEl.innerHTML = '';
+  for (let i = 0; i < passage.length; i++) {
+    const span = document.createElement('span');
+    span.className = 'char' + (i === 0 ? ' cursor' : '');
+    span.dataset.i = i;
+    span.textContent = passage[i];
+    passageEl.appendChild(span);
+  }
+}
+
+function updatePassageDisplay() {
+  const spans = passageEl.querySelectorAll('.char');
+  spans.forEach((span, i) => {
+    span.classList.remove('correct', 'wrong', 'cursor');
+    if (i < typed.length) {
+      span.classList.add(typed[i] === passage[i] ? 'correct' : 'wrong');
+    } else if (i === typed.length) {
+      span.classList.add('cursor');
+    }
+  });
+}
+
+function calcWpm() {
+  if (!startTime) return 0;
+  const elapsed = (Date.now() - startTime) / 1000 / 60;
+  if (elapsed === 0) return 0;
+  return Math.round(correctChars / 5 / elapsed);
+}
+
+function calcAccuracy() {
+  if (totalKeystrokes === 0) return null;
+  return Math.round(((totalKeystrokes - wrongKeystrokes) / totalKeystrokes) * 100);
+}
+
+function updateRing(secondsLeft) {
+  const frac = secondsLeft / DURATION;
+  const offset = CIRCUMFERENCE * (1 - frac);
+  ringEl.style.strokeDashoffset = offset;
+  ringEl.style.strokeDasharray = CIRCUMFERENCE;
+  ringEl.classList.toggle('urgent', secondsLeft <= 10);
+}
+
+function startTimer() {
+  startTime = Date.now();
+  running = true;
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+    updateRing(timeLeft);
+
+    const wpm = calcWpm();
+    wpmEl.textContent = wpm;
+    const acc = calcAccuracy();
+    accEl.textContent = acc !== null ? acc + '%' : '—';
+
+    if (timeLeft <= 0) endGame();
+  }, 1000);
+}
+
+function endGame(completed = false) {
+  clearInterval(timerInterval);
+  running = false;
+  inputEl.disabled = true;
+
+  const finalWpm = calcWpm();
+  const finalAcc = calcAccuracy() ?? 100;
+
+  resultTitle.textContent = completed ? 'Finished! 🎉' : "Time's up! ⏱";
+  resWpm.textContent = finalWpm;
+  resAcc.textContent = finalAcc + '%';
+  resChars.textContent = correctChars;
+
+  const hs = getHighScore();
+  if (finalWpm > hs) {
+    setHighScore(finalWpm);
+    newRecord.style.display = 'block';
+    hsNote.innerHTML = '';
+  } else {
+    newRecord.style.display = 'none';
+    hsNote.innerHTML = `ベストスコア: <span>${hs} WPM</span>`;
+  }
+
+  typingView.style.display = 'none';
+  resultView.classList.add('show');
+}
+
+function initGame(changePassage = false) {
+  clearInterval(timerInterval);
+  typed = '';
+  timeLeft = DURATION;
+  startTime = null;
+  running = false;
+  totalKeystrokes = 0;
+  wrongKeystrokes = 0;
+  correctChars = 0;
+
+  timerEl.textContent = DURATION;
+  wpmEl.textContent = '0';
+  accEl.textContent = '—';
+  updateRing(DURATION);
+  wpmEl.classList.remove('flash');
+
+  if (changePassage || !passage) {
+    passage = pickPassage();
+  }
+
+  renderPassage();
+
+  typingView.style.display = '';
+  resultView.classList.remove('show');
+  inputEl.disabled = false;
+  inputEl.value = '';
+  inputEl.focus();
+}
+
+inputEl.addEventListener('input', (e) => {
+  if (!running && inputEl.value.length > 0) {
+    startTimer();
+  }
+
+  const prev = typed;
+  typed = inputEl.value;
+
+  // Count keystrokes for accuracy
+  if (typed.length > prev.length) {
+    totalKeystrokes++;
+    const i = typed.length - 1;
+    if (typed[i] !== passage[i]) wrongKeystrokes++;
+    else correctChars++;
+  } else if (typed.length < prev.length) {
+    // backspace — recount correctChars from scratch
+    correctChars = 0;
+    for (let i = 0; i < typed.length; i++) {
+      if (typed[i] === passage[i]) correctChars++;
+    }
+  }
+
+  updatePassageDisplay();
+
+  // Completed the passage
+  if (typed === passage) {
+    endGame(true);
+  }
+});
+
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !running) {
+    initGame(false);
+  }
+});
+
+restartBtn.addEventListener('click', () => initGame(false));
+changeBtn.addEventListener('click', () => initGame(true));
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && resultView.classList.contains('show')) {
+    initGame(false);
+  }
+});
+
+// Show HS note on load
+const initHs = getHighScore();
+if (initHs > 0) {
+  hsNote.innerHTML = `ベストスコア: <span>${initHs} WPM</span>`;
+}
+
+initGame(true);
+</script>
+</body>
+</html>
